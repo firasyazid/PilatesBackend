@@ -14,7 +14,7 @@ router.post("/", async (req, res) => {
       expertise,
     });
 
-    // Save coach to the database
+    // Save coach to the  
     const savedCoach = await coach.save();
     res.status(201).json(savedCoach);
   } catch (error) {
