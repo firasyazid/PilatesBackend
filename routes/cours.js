@@ -6,7 +6,6 @@ const { Cours } = require("../models/cours");
 router.post("/", async (req, res) => {
   try {
     const { name, description, duration, intensityLevel,price } = req.body;
-
     // Create a new course
     const cours = new Cours({
       name,
@@ -25,7 +24,6 @@ router.post("/", async (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 });
-
 // GET /api/cours - Get all course types
 router.get("/", async (req, res) => {
   try {
@@ -38,9 +36,9 @@ router.get("/", async (req, res) => {
 });
 
 router.delete("/:id", (req, res) => {
-  User.findByIdAndRemove(req.params.id)
-    .then((user) => {
-      if (user) {
+  Cours.findByIdAndRemove(req.params.id)
+    .then((Cours) => {
+      if (Cours) {
         return res
           .status(200)
           .json({ success: true, message: "the cours is deleted!" });
@@ -53,6 +51,39 @@ router.delete("/:id", (req, res) => {
     .catch((err) => {
       return res.status(500).json({ success: false, error: err });
     });
+});
+
+router.get('/total', async (req, res) => {
+  try {
+    const count = await Cours.countDocuments(); 
+    res.json({ count });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+router.put('/:id', async (req, res) => {
+  try {
+    const course = await Cours.findByIdAndUpdate(
+      req.params.id,
+      {
+        name: req.body.name,
+        description: req.body.description,
+        duration: req.body.duration,
+        intensityLevel: req.body.intensityLevel,
+        price: req.body.price
+      },
+      { new: true }
+    );
+
+    if (!course) return res.status(400).send("The course cannot be updated!");
+
+    res.send(course);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Internal Server Error");
+  }
 });
 
 module.exports = router;

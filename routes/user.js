@@ -6,11 +6,34 @@ const jwt = require("jsonwebtoken");
 const multer = require("multer");
 const nodemailer = require("nodemailer");
  
-
-
- router.post("/inscription", async (req, res) => {
+router.get('/last-user', async (req, res) => {
   try {
-     const { fullname, email, password, phone } = req.body;
+    const userList = await User.find().select("-passwordHash").sort({ _id: -1 }); // Limit to 1 to get the latest user
+
+    if (!userList) {
+      return res.status(500).json({ success: false, message: "No users found" });
+    }
+    res.status(200).send(userList);
+  } catch (error) {
+    console.error("Error fetching the last user:", error);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+router.get('/total', async (req, res) => {
+  try {
+    const count = await User.countDocuments(); 
+    res.json({ count });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+
+router.post("/inscription", async (req, res) => {
+  try {
+    const { fullname, email, password, phone, isAdmin = false } = req.body;
+
     if (!fullname || !email || !password) {
       return res.status(400).send("Fullname, email, and password are required.");
     }
@@ -20,13 +43,14 @@ const nodemailer = require("nodemailer");
       return res.status(400).send("User with this email already exists.");
     }
 
-     const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 10);
 
-     const user = new User({
+    const user = new User({
       fullname,
       email,
       passwordHash,
       phone,
+      isAdmin, // This will use the value provided in the request body or default to false
     });
 
     // Save the user to the database
@@ -41,12 +65,14 @@ const nodemailer = require("nodemailer");
       fullname: savedUser.fullname,
       email: savedUser.email,
       phone: savedUser.phone,
+      isAdmin: savedUser.isAdmin,
     });
   } catch (error) {
     console.error("Error creating user:", error);
     res.status(500).send("Error creating user");
   }
 });
+
 
 router.get(`/`, async (req, res) => {
   const userList = await User.find().select("-passwordHash").sort({ _id: -1 });
@@ -81,50 +107,18 @@ router.put("/:id", async (req, res) => {
     const user = await User.findByIdAndUpdate(
       req.params.id,
       {
-        name: req.body.name,
+        fullname: req.body.fullname,
         email: req.body.email,
         passwordHash: newPassword,
         phone: req.body.phone,
         isAdmin: req.body.isAdmin,
-        validation: req.body.validation,
-        numero: req.body.numero,
-      },
+       },
       { new: true }
     );
 
     if (!user) return res.status(400).send("The user cannot be updated!");
 
-    if (req.body.validation === true) {
-
-
-      const transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-          user: "applicationdeltacuisine@gmail.com",
-          pass: "pphexfcjduvckjdv",
-        },
-      });
-
-      const mailOptions = {
-        from: "applicationdeltacuisine@gmail.com",
-        to: user.email,
-        subject: "Validation compte Delta Cuisine",
-        text: `${user.name},\n\Bienvenue dans la communauté Delta Cuisine !
-        Nous sommes ravis de vous informer que votre compte a été validé avec succès
-        Veuillez trouver ci-dessous votre mot de passe : ${req.body.password}\n\Encore une fois, bienvenue à bord !\n\L'équipe Delta cuisine.
-        `,
-      };
-
-      transporter.sendMail(mailOptions, (error, info) => {
-        if (error) {
-          console.error("Error sending email:", error);
-          res.status(500).send("Error sending email");
-        } else {
-          console.log("Email sent:", info.response);
-          res.status(200).send("Email sent successfully");
-        }
-      });
-    }
+   
 
     res.send(user);
   } catch (error) {
@@ -142,8 +136,6 @@ router.post("/login", async (req, res) => {
       return res.status(400).send("User not found");
     }
 
-   
-
     const isPasswordValid = await bcrypt.compare(req.body.password, user.passwordHash);
     if (isPasswordValid) {
       const token = jwt.sign(
@@ -155,7 +147,8 @@ router.post("/login", async (req, res) => {
         { expiresIn: "3d" }
       );
 
-      res.status(200).send({ user: user.email, userId: user.id, token: token });
+      // Include isAdmin in the response so the frontend can use it
+      res.status(200).send({ user: user.email, userId: user.id, token: token, isAdmin: user.isAdmin });
     } else {
       res.status(400).send("Password is incorrect");
     }
@@ -164,6 +157,7 @@ router.post("/login", async (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 });
+
 
 
 router.get(`/get/count`, async (req, res) => {
@@ -236,8 +230,8 @@ router.put("/update/:userId", async (req, res) => {
 });
 
  
- 
- 
+
+
 
 
 module.exports = router;

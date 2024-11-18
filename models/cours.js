@@ -17,8 +17,8 @@ const coursSchema = new mongoose.Schema({
   },
   intensityLevel: {
     type: String,
-    enum: ["Beginner", "Intermediate", "Advanced"],
-    default: "Beginner",
+    enum: ["Débutant", "Intermédiaire", "Avancé"],
+     default: "Débutant",
   },
   createdAt: {
     type: Date,

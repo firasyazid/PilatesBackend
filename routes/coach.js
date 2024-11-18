@@ -2,6 +2,18 @@ const express = require("express");
 const router = express.Router();
 const { Coach } = require("../models/coach");
 
+
+
+router.get('/total', async (req, res) => {
+  try {
+    const count = await Coach.countDocuments(); 
+    res.json({ count });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 // POST /api/coaches - Create a new coach
 router.post("/", async (req, res) => {
   try {
@@ -33,7 +45,6 @@ router.get("/", async (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 });
-
 
 router.delete("/:id", (req, res) => {
     User.findByIdAndRemove(req.params.id)

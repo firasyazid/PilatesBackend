@@ -54,7 +54,6 @@ router.get("/", async (req, res) => {
   }
 });
 
-
 // GET /api/scheduledSessions/today - Get scheduled sessions for the current day
 router.get("/today", async (req, res) => {
     try {
@@ -98,5 +97,83 @@ router.get("/week", async (req, res) => {
       res.status(500).send("Internal Server Error");
     }
   });
+
+  
+  function getCurrentWeekRange() {
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0 (Sunday) to 6 (Saturday)
+  
+    // Assuming week starts on Monday
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - ((dayOfWeek + 6) % 7)); // Set to last Monday
+    startOfWeek.setHours(0, 0, 0, 0);
+  
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6); // Set to Sunday of the current week
+    endOfWeek.setHours(23, 59, 59, 999);
+  
+    return { startOfWeek, endOfWeek };
+  }
+  
+  // GET /api/v1/bookings/weekly-bookings
+  router.get('/weekly-bookings', async (req, res) => {
+    const { startOfWeek, endOfWeek } = getCurrentWeekRange();
+  
+    try {
+      const bookings = await ScheduledSession.aggregate([
+        // Match only sessions within the current week
+        {
+          $match: {
+            date: {
+              $gte: startOfWeek,
+              $lt: endOfWeek
+            }
+          }
+        },
+        // Join with the Cours collection to get the course name
+        {
+          $lookup: {
+            from: "cours", // Confirm this matches the collection name in MongoDB
+            localField: "cours",
+            foreignField: "_id",
+            as: "courseDetails"
+          }
+        },
+        {
+          $unwind: "$courseDetails"
+        },
+        // Group by course name and day of the week
+        {
+          $group: {
+            _id: {
+              courseName: "$courseDetails.name",
+              dayOfWeek: { $dayOfWeek: "$date" }
+            },
+            totalBookings: { $sum: "$currentCapacity" }
+          }
+        },
+        {
+          $sort: { "_id.dayOfWeek": 1 }
+        }
+      ]);
+  
+      // Format output with French day names
+      const daysOfWeek = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+      const formattedData = bookings.map(booking => {
+        return {
+          courseName: booking._id.courseName,
+          dayOfWeek: daysOfWeek[booking._id.dayOfWeek - 1],
+          totalBookings: booking.totalBookings
+        };
+      });
+  
+      res.json(formattedData);
+    } catch (err) {
+      console.error('Error fetching weekly bookings:', err);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+  
+  
   
 module.exports = router;

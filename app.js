@@ -20,6 +20,7 @@ const userRouter = require("./routes/user");
 const coachRouter = require("./routes/coach");
 const coursRouter = require("./routes/cours");
 const scheduledSessionRouter = require("./routes/scheduledSession");
+const bookingRouter = require("./routes/booking");
  
   
 //Routes
@@ -27,6 +28,7 @@ app.use(`${api}/users`, userRouter);
 app.use(`${api}/coaches`, coachRouter);
 app.use(`${api}/cours`, coursRouter);
 app.use(`${api}/scheduledSessions`, scheduledSessionRouter);
+app.use(`${api}/bookings`, bookingRouter);
  
  
 
