@@ -8,7 +8,7 @@ const moment = require("moment");
 // POST /api/scheduledSessions - Create a new scheduled session
 router.post("/", async (req, res) => {
   try {
-    const { cours, coach, date, startTime, endTime, maxCapacity } = req.body;
+    const { name,cours, coach, date, startTime, endTime, maxCapacity } = req.body;
 
     // Check if the referenced course and coach exist
     const courseExists = await Cours.findById(cours);
@@ -23,6 +23,7 @@ router.post("/", async (req, res) => {
 
     // Create a new scheduled session
     const scheduledSession = new ScheduledSession({
+      name,
       cours,
       coach,
       date,
@@ -53,7 +54,6 @@ router.get("/", async (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 });
-
 // GET /api/scheduledSessions/today - Get scheduled sessions for the current day
 router.get("/today", async (req, res) => {
     try {
@@ -75,7 +75,6 @@ router.get("/today", async (req, res) => {
       res.status(500).send("Internal Server Error");
     }
   });
-  
 // GET /api/scheduledSessions/week - Get scheduled sessions for the current week
 router.get("/week", async (req, res) => {
     try {
@@ -175,5 +174,21 @@ router.get("/week", async (req, res) => {
   });
   
   
-  
+  router.delete("/:id", (req, res) => {
+    ScheduledSession.findByIdAndRemove(req.params.id)
+      .then((user) => {
+        if (user) {
+          return res
+            .status(200)
+            .json({ success: true, message: "the ScheduledSession is deleted!" });
+        } else {
+          return res
+            .status(404)
+            .json({ success: false, message: "ScheduledSession not found!" });
+        }
+      })
+      .catch((err) => {
+        return res.status(500).json({ success: false, error: err });
+      });
+  });
 module.exports = router;

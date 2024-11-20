@@ -148,7 +148,10 @@ router.post("/login", async (req, res) => {
       );
 
       // Include isAdmin in the response so the frontend can use it
-      res.status(200).send({ user: user.email, userId: user.id, token: token, isAdmin: user.isAdmin });
+      res.status(200).send({ user: user.email, userId: user.id, token: token, isAdmin: user.isAdmin  ,
+          fullname: user.fullname,
+
+      });
     } else {
       res.status(400).send("Password is incorrect");
     }
@@ -157,8 +160,6 @@ router.post("/login", async (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 });
-
-
 
 router.get(`/get/count`, async (req, res) => {
   const userCount = await User.countDocuments();

@@ -1,7 +1,12 @@
 const mongoose = require("mongoose");
 
 const scheduledSessionSchema = new mongoose.Schema({
-  cours: {
+
+  name: {
+    type: String,
+    required: true,
+  },
+ cours: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Cours",
     required: true,
@@ -36,10 +41,6 @@ const scheduledSessionSchema = new mongoose.Schema({
     default: Date.now,
   },
 });
-
- 
-
-
 
 scheduledSessionSchema.virtual("id").get(function () {
     return this._id.toHexString();
