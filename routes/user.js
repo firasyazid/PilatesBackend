@@ -1,11 +1,13 @@
 const { User } = require("../models/user");
+const { Abonnement } = require ("../models/abonnements");
 const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const multer = require("multer");
 const nodemailer = require("nodemailer");
- 
+const mongoose = require("mongoose");
+
 router.get('/last-user', async (req, res) => {
   try {
     const userList = await User.find().select("-passwordHash").sort({ _id: -1 }); // Limit to 1 to get the latest user
@@ -230,9 +232,78 @@ router.put("/update/:userId", async (req, res) => {
   }
 });
 
- 
+router.post("/acheter-abonnement/:userId", async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const abonnementId = req.body.abonnementId;
+
+    // Vérifier les IDs
+    if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(abonnementId)) {
+      return res.status(400).send("ID utilisateur ou abonnement invalide");
+    }
+
+    // Vérifier si l'utilisateur existe
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).send("Utilisateur non trouvé");
+
+    // Vérifier si l'abonnement existe
+    const abonnement = await Abonnement.findById(abonnementId);
+    if (!abonnement) return res.status(404).send("Abonnement non trouvé");
+
+    // Vérifier si l'utilisateur a un abonnement actif ou s'il s'agit de son premier abonnement
+    const currentDate = new Date();
+    if (user.expirationDate && user.expirationDate > currentDate) {
+      // L'utilisateur a un abonnement actif, cumule les sessions
+      user.sessionCount += abonnement.sessionCount;
+
+      // Prolonger la date d'expiration (en jours)
+      user.expirationDate = new Date(
+        user.expirationDate.setDate(user.expirationDate.getDate() + abonnement.duration)
+      );
+    } else {
+      // Premier abonnement ou abonnement expiré
+      user.sessionCount = abonnement.sessionCount; // Réinitialiser les sessions
+      user.expirationDate = new Date(
+        currentDate.setDate(currentDate.getDate() + abonnement.duration)
+      ); // Définir une nouvelle date d'expiration
+    }
+
+    // Associer l'abonnement actuel
+    user.abonnement = abonnement._id;
+
+    // Sauvegarder les modifications
+    const updatedUser = await user.save();
+
+    // Réponse
+    res.status(200).send({
+      message: "Abonnement acheté avec succès",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("Erreur lors de l'achat de l'abonnement :", error);
+    res.status(500).send("Erreur interne du serveur");
+  }
+});
 
 
+router.get("/users-by-abonnement/:abonnementId", async (req, res) => {
+  try {
+    const abonnementId = req.params.abonnementId;
 
+    // Find users with the specified abonnement
+    const users = await User.find({ abonnement: abonnementId }).select(
+      "fullname email sessionCount expirationDate"
+    );
+
+    if (!users || users.length === 0) {
+      return res.status(404).send("Aucun utilisateur trouvé pour cet abonnement");
+    }
+
+    res.status(200).send(users);
+  } catch (error) {
+    console.error("Erreur lors de la récupération des utilisateurs :", error);
+    res.status(500).send("Erreur interne du serveur");
+  }
+});
 
 module.exports = router;

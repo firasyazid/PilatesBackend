@@ -17,12 +17,24 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: "",
   },
-
   isAdmin: {
     type: Boolean,
     default: false,
   },
- 
+  abonnement: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Abonnement",  
+    default: null,
+  },
+  sessionCount: {
+    type: Number,
+    default: 0,  
+  },
+
+  expirationDate: {
+    type: Date,
+    default: null,  
+  },
 });
 
 userSchema.virtual("id").get(function () {

@@ -24,7 +24,7 @@ router.post("/", async (req, res) => {
     const booking = new Booking({
       scheduledSession: scheduledSessionId,
       user: userId,
-      status: "confirmed",
+      status: "confirmé",
     });
 
     // Save the booking
@@ -40,6 +40,7 @@ router.post("/", async (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 });
+
 //get all bookings
 router.get("/", async (req, res) => {
     try {
@@ -51,7 +52,7 @@ router.get("/", async (req, res) => {
             { path: "coach", select: "name bio expertise" }
           ]
         })
-        .populate("user", "name email");
+        .populate("user", "fullname");
   
       res.status(200).json(bookings);
     } catch (error) {
@@ -111,5 +112,72 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+router.delete("/:id", (req, res) => {
+  Booking.findByIdAndRemove(req.params.id)
+      .then((user) => {
+        if (user) {
+          return res
+            .status(200)
+            .json({ success: true, message: "the booking is deleted!" });
+        } else {
+          return res
+            .status(404)
+            .json({ success: false, message: "booking not found!" });
+        }
+      })
+      .catch((err) => {
+        return res.status(500).json({ success: false, error: err });
+      });
+  });
+
+router.put("/:id/status", async (req, res) => {
+    const { id } = req.params; // Get the booking ID from the URL
+    const { status } = req.body; // Get the new status from the request body
+  
+    // Validate status
+    if (!["confirmé", "annulé"].includes(status)) {
+      return res.status(400).send("Invalid status. Must be 'confirmé' or 'annulé'.");
+    }
+  
+    try {
+      // Find the booking by ID and update the status
+      const updatedBooking = await Booking.findByIdAndUpdate(
+        id,
+        { status },
+        { new: true } // Return the updated booking
+      );
+  
+      if (!updatedBooking) {
+        return res.status(404).send("Booking not found.");
+      }
+  
+      res.status(200).json(updatedBooking); // Return the updated booking
+    } catch (error) {
+      console.error("Error updating booking status:", error);
+      res.status(500).send("Internal Server Error");
+    }
+  });
+  
+
+  router.get("/:scheduledSessionId/users", async (req, res) => {
+    try {
+      const { scheduledSessionId } = req.params;
+  
+      // Find bookings for the given scheduled session ID
+      const bookings = await Booking.find({ scheduledSession: scheduledSessionId }).populate("user", "fullname email phone");
+  
+      if (!bookings || bookings.length === 0) {
+        return res.status(404).send("No users found for the given session.");
+      }
+  
+      // Extract users from bookings
+      const users = bookings.map((booking) => booking.user);
+  
+      res.status(200).json(users);
+    } catch (error) {
+      console.error("Error fetching users for the scheduled session:", error);
+      res.status(500).send("Internal Server Error");
+    }
+  });
   
 module.exports = router;

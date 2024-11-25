@@ -191,4 +191,31 @@ router.get("/week", async (req, res) => {
         return res.status(500).json({ success: false, error: err });
       });
   });
+
+  
+  router.put("/:id", async (req, res) => {
+    try {
+      const updatedSession = await ScheduledSession.findByIdAndUpdate(
+        req.params.id,
+        {
+          name: req.body.name,
+          cours: req.body.cours,
+          coach: req.body.coach,
+          date: req.body.date,
+          startTime: req.body.startTime,
+          endTime: req.body.endTime,
+          maxCapacity: req.body.maxCapacity,
+          currentCapacity: req.body.currentCapacity,
+        },
+        { new: true }
+      );
+      if (!updatedSession)
+        return res.status(404).send({ message: "Session not found" });
+      res.status(200).send(updatedSession);
+    } catch (error) {
+      res.status(400).send({ message: "Error updating session", error });
+    }
+  });
+  
+  
 module.exports = router;
