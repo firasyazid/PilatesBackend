@@ -35,6 +35,14 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null,  
   },
+  tokenPassword: {
+    type: Number,  
+    default: null,
+  },
+  tokenPasswordExpiration: {
+    type: Date,
+    default: null,
+  },
 });
 
 userSchema.virtual("id").get(function () {

@@ -7,6 +7,7 @@ const jwt = require("jsonwebtoken");
 const multer = require("multer");
 const nodemailer = require("nodemailer");
 const mongoose = require("mongoose");
+const crypto = require("crypto");
 
 router.get('/last-user', async (req, res) => {
   try {
@@ -52,17 +53,15 @@ router.post("/inscription", async (req, res) => {
       email,
       passwordHash,
       phone,
-      isAdmin, // This will use the value provided in the request body or default to false
+      isAdmin,  
     });
 
-    // Save the user to the database
-    const savedUser = await user.save();
+     const savedUser = await user.save();
     if (!savedUser) {
       return res.status(400).send("The user could not be created.");
     }
 
-    // Respond with success
-    res.status(201).send({
+     res.status(201).send({
       id: savedUser.id,
       fullname: savedUser.fullname,
       email: savedUser.email,
@@ -133,9 +132,9 @@ router.post("/login", async (req, res) => {
   try {
     const user = await User.findOne({ email: req.body.email });
     const secret = process.env.secret;
-    
+
     if (!user) {
-      return res.status(400).send("User not found");
+      return res.status(404).send("Utilisateur non trouvé");  
     }
 
     const isPasswordValid = await bcrypt.compare(req.body.password, user.passwordHash);
@@ -149,17 +148,19 @@ router.post("/login", async (req, res) => {
         { expiresIn: "3d" }
       );
 
-      // Include isAdmin in the response so the frontend can use it
-      res.status(200).send({ user: user.email, userId: user.id, token: token, isAdmin: user.isAdmin  ,
-          fullname: user.fullname,
-
+      return res.status(200).send({
+        user: user.email,
+        userId: user.id,
+        token: token,
+        isAdmin: user.isAdmin,
+        fullname: user.fullname,
       });
     } else {
-      res.status(400).send("Password is incorrect");
+      return res.status(401).send("Mot de passe incorrect"); // 401 for incorrect password
     }
   } catch (error) {
     console.error(error);
-    res.status(500).send("Internal Server Error");
+    return res.status(500).send("Erreur interne du serveur"); // 500 for internal server error
   }
 });
 
@@ -290,9 +291,8 @@ router.get("/users-by-abonnement/:abonnementId", async (req, res) => {
   try {
     const abonnementId = req.params.abonnementId;
 
-    // Find users with the specified abonnement
-    const users = await User.find({ abonnement: abonnementId }).select(
-      "fullname email sessionCount expirationDate"
+     const users = await User.find({ abonnement: abonnementId }).select(
+      "fullname phone email sessionCount expirationDate"
     );
 
     if (!users || users.length === 0) {
@@ -305,5 +305,124 @@ router.get("/users-by-abonnement/:abonnementId", async (req, res) => {
     res.status(500).send("Erreur interne du serveur");
   }
 });
+
+
+router.get("/abonnement-user-count/:abonnementId", async (req, res) => {
+  try {
+    const abonnementId = req.params.abonnementId;
+
+    // Count the number of users with the specified abonnement
+    const userCount = await User.countDocuments({ abonnement: abonnementId });
+
+    res.status(200).send({ abonnementId, userCount });
+  } catch (error) {
+    console.error("Erreur lors de la récupération du nombre d'utilisateurs :", error);
+    res.status(500).send("Erreur interne du serveur");
+  }
+});
+
+router.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    // Vérifiez si l'utilisateur existe
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).send("Utilisateur introuvable");
+    }
+
+    // Génération d'un token aléatoire à 5 chiffres
+    const token = Math.floor(10000 + Math.random() * 90000); // Génère un nombre entre 10000 et 99999
+
+    // Enregistrez le token et la date d'expiration
+    user.tokenPassword = token; // Save directly as a number
+    user.tokenPasswordExpiration = Date.now() + 60 * 60 * 1000; // Expiration dans 1 heure
+    await user.save();
+
+    // Configuration de Nodemailer
+    const userTransporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: "firasyazid4@gmail.com",
+        pass: "cntnhhvujdsfzhig",
+      },
+    });
+
+    // Email avec le token
+    const userMailOptions = {
+      from: "firasyazid4@gmail.com",
+      to: user.email,
+      subject: "Réinitialisation de mot de passe",
+      html: `
+        <html>
+          <body>
+            <p>Bonjour ${user.fullname},</p>
+            <p>Voici votre code de réinitialisation de mot de passe :</p>
+            <h3>${token}</h3>
+            <p>Ce code expirera dans une heure.</p>
+          </body>
+        </html>
+      `,
+    };
+
+    // Envoi de l'email
+    userTransporter.sendMail(userMailOptions, function (error, info) {
+      if (error) {
+        console.error(error);
+        return res.status(500).json({ message: "Échec de l'envoi de l'email" });
+      } else {
+        console.log("Email envoyé : " + info.response);
+        return res
+          .status(200)
+          .json({ message: "Code de réinitialisation envoyé par email avec succès" });
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Erreur serveur");
+  }
+});
+
+
+
+router.post("/reset-password", async (req, res) => {
+  try {
+    const { email, token, newPassword } = req.body;
+
+    // Validate inputs
+    if (!email || !token || !newPassword) {
+      return res.status(400).send("Tous les champs sont obligatoires.");
+    }
+
+    // Find the user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).send("Utilisateur introuvable.");
+    }
+
+    // Check if the token matches and is not expired
+    if (
+      user.tokenPassword !== parseInt(token, 10) || // Compare token as a number
+      user.tokenPasswordExpiration < Date.now()
+    ) {
+      return res.status(400).send("Token invalide ou expiré.");
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update the user's password and clear the token
+    user.passwordHash = hashedPassword;
+    user.tokenPassword = null; // Clear the token
+    user.tokenPasswordExpiration = null; // Clear the expiration
+    await user.save();
+
+    return res.status(200).send("Mot de passe réinitialisé avec succès.");
+  } catch (error) {
+    console.error("Erreur lors de la réinitialisation du mot de passe:", error);
+    res.status(500).send("Erreur serveur.");
+  }
+});
+
 
 module.exports = router;
