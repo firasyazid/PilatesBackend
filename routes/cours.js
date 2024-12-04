@@ -1,11 +1,45 @@
 const express = require("express");
 const router = express.Router();
 const { Cours } = require("../models/cours");
+const { Category } = require("../models/categories");
+const multer = require("multer");
 
-// POST /api/cours - Create a new course type
-router.post("/", async (req, res) => {
+const FILE_TYPE_MAP = {
+  "image/png": "png",
+  "image/jpeg": "jpeg",
+  "image/jpg": "jpg",
+};
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "public/uploads");
+  },
+  filename: function (req, file, cb) {
+    const fileName = file.originalname.split(" ").join("-");
+    const extension = FILE_TYPE_MAP[file.mimetype] || "file";
+    cb(null, `${fileName}-${Date.now()}.${extension}`);
+  },
+});
+
+const uploadOptions = multer({ storage: storage });
+
+// POST /api/cours - Create a new course
+router.post("/", uploadOptions.single("image"), async (req, res) => {
   try {
-    const { name, description, duration, intensityLevel,price } = req.body;
+    const { name, description, duration, intensityLevel, price, category } = req.body;
+
+    // Validate if the category exists
+    const categoryExists = await Category.findById(category);
+    if (!categoryExists) {
+      return res.status(404).json({ message: "Category not found" });
+    }
+
+    let imagePath = "";
+    if (req.file) {
+      const basePath = `${req.protocol}://${req.get("host")}/public/uploads/`;
+      imagePath = `${basePath}${req.file.filename}`;
+    }
+
     // Create a new course
     const cours = new Cours({
       name,
@@ -13,7 +47,8 @@ router.post("/", async (req, res) => {
       duration,
       intensityLevel,
       price,
-
+      category,
+      image: imagePath || null, // Add the image field
     });
 
     // Save the course to the database
@@ -27,13 +62,15 @@ router.post("/", async (req, res) => {
 // GET /api/cours - Get all course types
 router.get("/", async (req, res) => {
   try {
-    const courses = await Cours.find();
+    // Fetch courses and populate the 'category' field
+    const courses = await Cours.find().populate("category", "name");
     res.status(200).json(courses);
   } catch (error) {
     console.error("Error fetching courses:", error);
     res.status(500).send("Internal Server Error");
   }
 });
+
 
 router.delete("/:id", (req, res) => {
   Cours.findByIdAndRemove(req.params.id)
@@ -72,7 +109,8 @@ router.put('/:id', async (req, res) => {
         description: req.body.description,
         duration: req.body.duration,
         intensityLevel: req.body.intensityLevel,
-        price: req.body.price
+        price: req.body.price,
+        category: req.body.category
       },
       { new: true }
     );

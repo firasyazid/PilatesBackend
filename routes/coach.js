@@ -24,7 +24,8 @@ const storage = multer.diskStorage({
 const uploadOptions = multer({ storage: storage });
 
 
- 
+ // POST /api/coaches - Create a new coach
+
 router.post("/", uploadOptions.single("image"), async (req, res) => {
   try {
     const { name, bio, expertise } = req.body;
@@ -35,16 +36,14 @@ router.post("/", uploadOptions.single("image"), async (req, res) => {
       imagePath = `${basePath}${req.file.filename}`;
     }
 
-    // Create a new coach
-    const coach = new Coach({
+     const coach = new Coach({
       name,
       bio,
       expertise,
-      image: imagePath || null, // Set the image field to the path or null if no image is uploaded
+      image: imagePath || null,  
     });
 
-    // Save coach to the database
-    const savedCoach = await coach.save();
+     const savedCoach = await coach.save();
     res.status(201).json(savedCoach);
   } catch (error) {
     console.error("Error creating coach:", error);
@@ -63,7 +62,6 @@ router.get('/total', async (req, res) => {
   }
 });
 
-// POST /api/coaches - Create a new coach
 
 // GET /api/coaches - Get all coaches
 router.get("/", async (req, res) => {

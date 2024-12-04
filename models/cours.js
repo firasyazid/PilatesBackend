@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 
 const coursSchema = new mongoose.Schema({
-  
   name: {
     type: String,
     required: true,
@@ -19,7 +18,7 @@ const coursSchema = new mongoose.Schema({
   intensityLevel: {
     type: String,
     enum: ["Débutant", "Intermédiaire", "Avancé"],
-     default: "Débutant",
+    default: "Débutant",
   },
   createdAt: {
     type: Date,
@@ -27,8 +26,17 @@ const coursSchema = new mongoose.Schema({
   },
   price: {
     type: Number,
-    required: true,  
+    required: true,
   },
+  category: {
+    type: mongoose.Schema.Types.ObjectId,  
+    ref: "Category",
+    required: true,
+  },
+  image: {
+    type: String,
+    default:""
+   },
 });
 
 coursSchema.virtual("id").get(function () {
