@@ -5,6 +5,43 @@ const { Cours } = require("../models/cours");
 const { Coach } = require("../models/coach");
 const moment = require("moment");
 
+
+router.get("/:coursId", async (req, res) => {
+  try {
+    const { coursId } = req.params;
+
+     const today = new Date();
+    today.setHours(0, 0, 0, 0); // Réinitialiser les heures pour commencer à minuit
+
+     const endOfWeek = new Date(today);
+    endOfWeek.setDate(today.getDate() + (7 - today.getDay()));
+
+     const sessions = await ScheduledSession.find({
+      cours: coursId,
+      date: {
+        $gte: today, // Date de début : aujourd'hui
+        $lte: endOfWeek, // Date de fin : dimanche
+      },
+    })
+      .populate("cours") // Facultatif : inclure les détails du cours
+      .populate("coach") // Facultatif : inclure les détails du coach
+      .exec();
+
+    // Répondre avec les données des sessions
+    res.status(200).json({
+      success: true,
+      data: sessions,
+    });
+  } catch (error) {
+    console.error("Erreur lors de la récupération des sessions :", error);
+    res.status(500).json({
+      success: false,
+      message: "Erreur interne du serveur",
+    });
+  }
+});
+
+
 // POST /api/scheduledSessions - Create a new scheduled session
 router.post("/", async (req, res) => {
   try {

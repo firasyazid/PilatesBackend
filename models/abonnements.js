@@ -21,6 +21,11 @@ const abonnementSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,  
   },
+  categorie: {
+    type: String,
+    required: true,
+    enum: ["Tout les cours", "Amincissement", "Massage"], 
+  },
 
 });
 

@@ -28,26 +28,42 @@ router.get("/:id", async (req, res) => {
 // Create a new abonnement
 router.post("/", async (req, res) => {
   try {
-    const { name, sessionCount, duration, price } = req.body;
+    const { name, sessionCount, duration, price, categorie } = req.body;
 
-    // Validation
-    if (!name || !sessionCount || !duration || !price) {
+    // Validation for required fields
+    if (!name || !sessionCount || !duration || !price || !categorie) {
       return res.status(400).json({ success: false, message: "Tous les champs sont requis" });
     }
 
+    // Validate categorie field
+    const validCategories = ["Tout les cours", "Amincissement", "Massage"];
+    if (!validCategories.includes(categorie)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "La catégorie doit être 'Tout les cours', 'Amincissement', ou 'Massage'" });
+    }
+
+    // Create the new abonnement
     const abonnement = new Abonnement({
       name,
       sessionCount,
       duration,
       price,
+      categorie,  
     });
 
     const savedAbonnement = await abonnement.save();
-    res.status(201).json(savedAbonnement);
+    res.status(201).json({ success: true, data: savedAbonnement });
   } catch (error) {
-    res.status(500).json({ success: false, message: "Erreur lors de la création de l'abonnement", error });
+    console.error("Erreur lors de la création de l'abonnement:", error);
+    res.status(500).json({
+      success: false,
+      message: "Erreur interne du serveur lors de la création de l'abonnement",
+      error,
+    });
   }
 });
+
 
 // Delete an abonnement by ID
 router.delete("/:id", async (req, res) => {

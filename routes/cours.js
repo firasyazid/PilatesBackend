@@ -3,6 +3,7 @@ const router = express.Router();
 const { Cours } = require("../models/cours");
 const { Category } = require("../models/categories");
 const multer = require("multer");
+const { ScheduledSession } = require("../models/scheduledSession");  
 
 const FILE_TYPE_MAP = {
   "image/png": "png",
@@ -59,6 +60,52 @@ router.post("/", uploadOptions.single("image"), async (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 });
+
+
+router.get("/sessions/:coursId", async (req, res) => {
+  try {
+    const { coursId } = req.params;
+
+    // Obtenez la date actuelle
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Réinitialiser les heures pour commencer à minuit
+
+    // Définissez la fin de la semaine (dimanche)
+    const endOfWeek = new Date(today);
+    endOfWeek.setDate(today.getDate() + (7 - today.getDay()));
+
+    // Rechercher les sessions programmées pour ce cours entre aujourd'hui et la fin de la semaine
+    const sessions = await ScheduledSession.find({
+      cours: coursId,
+      date: {
+        $gte: today, // Date de début : aujourd'hui
+        $lte: endOfWeek, // Date de fin : dimanche
+      },
+    })
+      .populate("cours") // Facultatif : inclure les détails du cours
+      .populate("coach") // Facultatif : inclure les détails du coach
+      .exec();
+
+    // Répondre avec les données des sessions
+    res.status(200).json({
+      success: true,
+      data: sessions,
+    });
+  } catch (error) {
+    console.error("Erreur lors de la récupération des sessions :", error);
+    res.status(500).json({
+      success: false,
+      message: "Erreur interne du serveur",
+    });
+  }
+});
+
+
+
+
+
+
+
 // GET /api/cours - Get all course types
 router.get("/", async (req, res) => {
   try {
