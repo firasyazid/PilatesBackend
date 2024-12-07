@@ -26,6 +26,10 @@ const abonnementSchema = new mongoose.Schema({
     required: true,
     enum: ["Tout les cours", "Amincissement", "Massage"], 
   },
+ image: {
+    type: String,
+    required: true,
+  },
 
 });
 

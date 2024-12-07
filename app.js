@@ -23,6 +23,7 @@ const scheduledSessionRouter = require("./routes/scheduledSession");
 const bookingRouter = require("./routes/booking");
 const abonnementRouter = require("./routes/abonnements");
 const categoryRouter = require("./routes/categoris");
+const articleRouter = require("./routes/articles");
  
   
 //Routes
@@ -33,6 +34,7 @@ app.use(`${api}/scheduledSessions`, scheduledSessionRouter);
 app.use(`${api}/bookings`, bookingRouter);
 app.use(`${api}/abonnements`, abonnementRouter);
  app.use(`${api}/categories`, categoryRouter);
+app.use(`${api}/articles`, articleRouter);
  
 
 //Database

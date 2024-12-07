@@ -8,7 +8,7 @@ const multer = require("multer");
 const nodemailer = require("nodemailer");
 const mongoose = require("mongoose");
 const crypto = require("crypto");
-
+ 
 router.get('/last-user', async (req, res) => {
   try {
     const userList = await User.find().select("-passwordHash").sort({ _id: -1 }); // Limit to 1 to get the latest user
@@ -154,13 +154,14 @@ router.post("/login", async (req, res) => {
         token: token,
         isAdmin: user.isAdmin,
         fullname: user.fullname,
+        phone: user.phone,
       });
     } else {
-      return res.status(401).send("Mot de passe incorrect"); // 401 for incorrect password
+      return res.status(401).send("Mot de passe incorrect");  
     }
   } catch (error) {
     console.error(error);
-    return res.status(500).send("Erreur interne du serveur"); // 500 for internal server error
+    return res.status(500).send("Erreur interne du serveur");  
   }
 });
 
@@ -286,7 +287,6 @@ router.post("/acheter-abonnement/:userId", async (req, res) => {
   }
 });
 
-
 router.get("/users-by-abonnement/:abonnementId", async (req, res) => {
   try {
     const abonnementId = req.params.abonnementId;
@@ -305,7 +305,6 @@ router.get("/users-by-abonnement/:abonnementId", async (req, res) => {
     res.status(500).send("Erreur interne du serveur");
   }
 });
-
 
 router.get("/abonnement-user-count/:abonnementId", async (req, res) => {
   try {
@@ -383,8 +382,6 @@ router.post("/forgot-password", async (req, res) => {
   }
 });
 
-
-
 router.post("/reset-password", async (req, res) => {
   try {
     const { email, token, newPassword } = req.body;
@@ -423,6 +420,133 @@ router.post("/reset-password", async (req, res) => {
     res.status(500).send("Erreur serveur.");
   }
 });
+
+router.put("/:id/email", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email } = req.body;
+
+     if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Le champ email est obligatoire.",
+      });
+    }
+
+     const emailExists = await User.findOne({ email });
+    if (emailExists) {
+      return res.status(400).json({
+        success: false,
+        message: "Cet email est déjà utilisé.",
+      });
+    }
+
+     const updatedUser = await User.findByIdAndUpdate(
+      id,
+      { email },
+      { new: true }  
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        success: false,
+        message: "Utilisateur non trouvé.",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Email mis à jour avec succès.",
+      data: updatedUser,
+    });
+  } catch (error) {
+    console.error("Erreur lors de la mise à jour de l'email:", error);
+    res.status(500).json({
+      success: false,
+      message: "Erreur interne du serveur.",
+      error,
+    });
+  }
+});
+
+// PUT route to update the phone number of a user
+router.put("/update-phone/:userId", async (req, res) => {
+  const { userId } = req.params;
+  const { phone } = req.body;
+
+  try {
+    // Validate input
+    if (!phone) {
+      return res.status(400).json({ message: "Phone number is required" });
+    }
+
+    // Update the user's phone field
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { phone },
+      { new: true } // Return the updated document
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json({
+      message: "Phone number updated successfully",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "An error occurred while updating the phone number" });
+  }
+});
+
+router.put("/update-password/:userId", async (req, res) => {
+  const { userId } = req.params;
+  const { currentPassword, newPassword } = req.body;
+
+  try {
+    // Validate input
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        message: "Both current and new passwords are required.",
+      });
+    }
+
+    // Fetch user from the database
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Verify the current password
+    const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isMatch) {
+      return res
+        .status(401)
+        .json({ message: "Current password is incorrect." });
+    }
+
+    // Hash the new password
+    const saltRounds = 10;
+    const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
+
+    // Update the user's password
+    user.passwordHash = newPasswordHash;
+    const updatedUser = await user.save();
+
+    res.status(200).json({
+      message: "Password updated successfully.",
+      user: { id: updatedUser.id, email: updatedUser.email },
+    });
+  } catch (error) {
+    console.error("Error updating password:", error);
+    res
+      .status(500)
+      .json({ message: "An error occurred while updating the password." });
+  }
+});
+
 
 
 module.exports = router;

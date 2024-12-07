@@ -1,6 +1,27 @@
 const express = require("express");
 const router = express.Router();
 const { Abonnement } = require("../models/abonnements");  
+const multer = require("multer");
+const { ScheduledSession } = require("../models/scheduledSession");  
+
+const FILE_TYPE_MAP = {
+  "image/png": "png",
+  "image/jpeg": "jpeg",
+  "image/jpg": "jpg",
+};
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "public/uploads");
+  },
+  filename: function (req, file, cb) {
+    const fileName = file.originalname.split(" ").join("-");
+    const extension = FILE_TYPE_MAP[file.mimetype] || "file";
+    cb(null, `${fileName}-${Date.now()}.${extension}`);
+  },
+});
+
+const uploadOptions = multer({ storage: storage });
 
 // Get all abonnements
 router.get("/", async (req, res) => {
@@ -26,39 +47,43 @@ router.get("/:id", async (req, res) => {
 });
 
 // Create a new abonnement
-router.post("/", async (req, res) => {
+router.post("/", uploadOptions.single("image"), async (req, res) => {
   try {
     const { name, sessionCount, duration, price, categorie } = req.body;
 
-    // Validation for required fields
-    if (!name || !sessionCount || !duration || !price || !categorie) {
+     if (!name || !sessionCount || !duration || !price || !categorie) {
       return res.status(400).json({ success: false, message: "Tous les champs sont requis" });
     }
 
-    // Validate categorie field
-    const validCategories = ["Tout les cours", "Amincissement", "Massage"];
+     const validCategories = ["Tout les cours", "Amincissement", "Massage"];
     if (!validCategories.includes(categorie)) {
       return res
         .status(400)
         .json({ success: false, message: "La catégorie doit être 'Tout les cours', 'Amincissement', ou 'Massage'" });
     }
 
-    // Create the new abonnement
-    const abonnement = new Abonnement({
+     let imagePath = "";
+    if (req.file) {
+      const basePath = `${req.protocol}://${req.get("host")}/public/uploads/`;
+      imagePath = `${basePath}${req.file.filename}`;
+    }
+
+     const abonnement = new Abonnement({
       name,
       sessionCount,
       duration,
       price,
-      categorie,  
+      categorie,
+      image: imagePath || null,  
     });
 
-    const savedAbonnement = await abonnement.save();
+     const savedAbonnement = await abonnement.save();
     res.status(201).json({ success: true, data: savedAbonnement });
   } catch (error) {
-    console.error("Erreur lors de la création de l'abonnement:", error);
+    console.error("Error creating abonnement:", error);
     res.status(500).json({
       success: false,
-      message: "Erreur interne du serveur lors de la création de l'abonnement",
+      message: "Erreur interne lors de la création de l'abonnement",
       error,
     });
   }
