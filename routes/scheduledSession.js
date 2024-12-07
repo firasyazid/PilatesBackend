@@ -10,24 +10,37 @@ router.get("/:coursId", async (req, res) => {
   try {
     const { coursId } = req.params;
 
-     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Réinitialiser les heures pour commencer à minuit
+    // Get today's date
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-     const endOfWeek = new Date(today);
-    endOfWeek.setDate(today.getDate() + (7 - today.getDay()));
+    // Calculate the start of the week (Monday)
+    const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    const daysToMonday = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek;
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() + daysToMonday);
 
-     const sessions = await ScheduledSession.find({
+    // Calculate the end of the week (Sunday)
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    endOfWeek.setHours(23, 59, 59, 999);
+
+    console.log(`Start of Week: ${startOfWeek}`);
+    console.log(`End of Week: ${endOfWeek}`);
+
+    // Query scheduled sessions for the current week
+    const sessions = await ScheduledSession.find({
       cours: coursId,
       date: {
-        $gte: today, // Date de début : aujourd'hui
-        $lte: endOfWeek, // Date de fin : dimanche
+        $gte: startOfWeek, // Monday
+        $lte: endOfWeek,   // Sunday
       },
     })
-      .populate("cours") // Facultatif : inclure les détails du cours
-      .populate("coach") // Facultatif : inclure les détails du coach
+      .populate("cours")
+      .populate("coach")
       .exec();
 
-    // Répondre avec les données des sessions
+    // Respond with the data
     res.status(200).json({
       success: true,
       data: sessions,
@@ -40,6 +53,7 @@ router.get("/:coursId", async (req, res) => {
     });
   }
 });
+
 
 
 // POST /api/scheduledSessions - Create a new scheduled session
