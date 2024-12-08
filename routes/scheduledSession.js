@@ -5,7 +5,6 @@ const { Cours } = require("../models/cours");
 const { Coach } = require("../models/coach");
 const moment = require("moment");
 
-
 router.get("/:coursId", async (req, res) => {
   try {
     const { coursId } = req.params;
@@ -53,7 +52,124 @@ router.get("/:coursId", async (req, res) => {
     });
   }
 });
+router.get("/week/:coursId", async (req, res) => {
+  try {
+    const { coursId } = req.params;
 
+    // Get today's date
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Calculate the start of the week (Monday)
+    const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    const daysToMonday = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek;
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() + daysToMonday);
+
+    // Create an array for the entire week (Monday to Sunday)
+    const week = [];
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(startOfWeek);
+      day.setDate(startOfWeek.getDate() + i);
+      week.push(day);
+    }
+
+    // Query scheduled sessions for the entire week
+    const sessions = await ScheduledSession.find({
+      cours: coursId,
+      date: {
+        $gte: startOfWeek,
+        $lte: new Date(startOfWeek.getTime() + 6 * 24 * 60 * 60 * 1000), // End of the week
+      },
+    })
+      .populate("cours")
+      .populate("coach")
+      .exec();
+
+    // Group sessions by day
+    const groupedSessions = {};
+    week.forEach((day) => {
+      const dayString = day.toLocaleDateString("fr-FR", { weekday: "long" }); // e.g., "Lundi"
+      groupedSessions[dayString] = sessions.filter((session) => {
+        const sessionDate = new Date(session.date);
+        return (
+          sessionDate.getFullYear() === day.getFullYear() &&
+          sessionDate.getMonth() === day.getMonth() &&
+          sessionDate.getDate() === day.getDate()
+        );
+      });
+    });
+
+    // Respond with grouped sessions
+    res.status(200).json(groupedSessions);
+  } catch (error) {
+    console.error("Erreur lors de la récupération des sessions :", error);
+    res.status(500).json({
+      success: false,
+      message: "Erreur interne du serveur",
+    });
+  }
+});
+
+
+router.get("/next-week/:coursId", async (req, res) => {
+  try {
+    const { coursId } = req.params;
+
+    // Get today's date
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Calculate the start of the next week (Monday)
+    const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    const daysToMonday = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek;
+    const startOfNextWeek = new Date(today);
+    startOfNextWeek.setDate(today.getDate() + daysToMonday + 7); // Add 7 days to move to the next week
+
+    // Create an array for the entire next week (Monday to Sunday)
+    const week = [];
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(startOfNextWeek);
+      day.setDate(startOfNextWeek.getDate() + i);
+      week.push(day);
+    }
+
+    // Query scheduled sessions for the next week
+    const sessions = await ScheduledSession.find({
+      cours: coursId,
+      date: {
+        $gte: startOfNextWeek,
+        $lte: new Date(startOfNextWeek.getTime() + 6 * 24 * 60 * 60 * 1000), // End of next week
+      },
+    })
+      .populate("cours")
+      .populate("coach")
+      .exec();
+
+    // Group sessions by day
+    const groupedSessions = {};
+    week.forEach((day) => {
+      const dayString = day.toLocaleDateString("fr-FR", { weekday: "long" }); // e.g., "Lundi"
+      groupedSessions[dayString] = sessions.filter((session) => {
+        const sessionDate = new Date(session.date);
+        return (
+          sessionDate.getFullYear() === day.getFullYear() &&
+          sessionDate.getMonth() === day.getMonth() &&
+          sessionDate.getDate() === day.getDate()
+        );
+      });
+    });
+
+    // Respond with grouped sessions
+    res.status(200).json(groupedSessions);
+  } catch (error) {
+    console.error("Erreur lors de la récupération des sessions :", error);
+    res.status(500).json({
+      success: false,
+      message: "Erreur interne du serveur",
+    });
+  }
+});
 
 
 // POST /api/scheduledSessions - Create a new scheduled session
