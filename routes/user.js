@@ -8,7 +8,8 @@ const multer = require("multer");
 const nodemailer = require("nodemailer");
 const mongoose = require("mongoose");
 const crypto = require("crypto");
- 
+const { Booking } = require("../models/booking");  
+
 router.get('/last-user', async (req, res) => {
   try {
     const userList = await User.find().select("-passwordHash").sort({ _id: -1 }); // Limit to 1 to get the latest user
@@ -238,7 +239,6 @@ router.post("/acheter-abonnement/:userId", async (req, res) => {
   try {
     const userId = req.params.userId;
     const abonnementId = req.body.abonnementId;
-
     // Vérifier les IDs
     if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(abonnementId)) {
       return res.status(400).send("ID utilisateur ou abonnement invalide");
@@ -547,6 +547,34 @@ router.put("/update-password/:userId", async (req, res) => {
   }
 });
 
+router.get("/user-booking/:userId", async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+     const bookings = await Booking.find({ user: userId })
+      .populate("scheduledSession") 
+       .populate("user", "-passwordHash")  
+      .sort({ createdAt: -1 }); 
+
+    if (!bookings || bookings.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No bookings found for this user.",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: bookings,
+    });
+  } catch (error) {
+    console.error("Error fetching bookings:", error);
+    res.status(500).json({
+      success: false,
+      message: "An error occurred while fetching bookings.",
+    });
+  }
+});
 
 
 module.exports = router;

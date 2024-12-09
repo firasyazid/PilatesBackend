@@ -2,42 +2,145 @@ const express = require("express");
 const router = express.Router();
 const { ScheduledSession } = require("../models/scheduledSession");
 const { Booking } = require("../models/booking");
+const { User } = require("../models/user");
 
-// POST /api/bookings - Create a booking for a scheduled session
+// POST /api/bookings - Create a booking for a scheduled session 
 router.post("/", async (req, res) => {
   try {
     const { scheduledSessionId, userId } = req.body;
 
-    // Find the scheduled session by ID
+    // Vérifier si l'utilisateur existe
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "Utilisateur non trouvé." });
+    }
+    // Vérifier si l'utilisateur a encore des sessions disponibles
+    if (user.sessionCount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Vous n'avez plus de sessions disponibles. Veuillez acheter un nouvel abonnement.",
+      });
+    }
+    // Vérifier si la session planifiée existe
     const scheduledSession = await ScheduledSession.findById(scheduledSessionId);
-
     if (!scheduledSession) {
-      return res.status(404).send("Scheduled session not found.");
+      return res.status(404).json({ success: false, message: "Session planifiée non trouvée." });
     }
 
-    // Check if the session is fully booked
+    // Vérifier si la session est complète
     if (scheduledSession.currentCapacity >= scheduledSession.maxCapacity) {
-      return res.status(400).send("This session is fully booked.");
+      return res.status(400).json({ success: false, message: "Cette session est complète." });
     }
 
-    // Create a new booking
+    // Créer une nouvelle réservation
     const booking = new Booking({
       scheduledSession: scheduledSessionId,
       user: userId,
       status: "confirmé",
     });
 
-    // Save the booking
+    // Sauvegarder la réservation
     const savedBooking = await booking.save();
 
-    // Increment the current capacity of the scheduled session
+    // Mettre à jour la capacité actuelle de la session
     scheduledSession.currentCapacity += 1;
     await scheduledSession.save();
 
-    res.status(201).json(savedBooking);
+    // Décrémenter le nombre de sessions disponibles pour l'utilisateur
+    user.sessionCount -= 1;
+    await user.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Réservation confirmée.",
+      data: savedBooking,
+    });
   } catch (error) {
-    console.error("Error creating booking:", error);
-    res.status(500).send("Internal Server Error");
+    console.error("Erreur lors de la création de la réservation :", error);
+    res.status(500).json({ success: false, message: "Erreur interne du serveur." });
+  }
+});
+// POST /api/bookings - Create a booking for a scheduled session this is itt!!!
+router.post("/reserver-sessions", async (req, res) => {
+  try {
+    const { userId, scheduledSessionId } = req.body;
+
+    // Vérifier les IDs
+    if (!userId || !scheduledSessionId) {
+      return res.status(400).json({ success: false, message: "IDs manquants" });
+    }
+
+    // Vérifier si l'utilisateur existe
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "Utilisateur non trouvé" });
+    }
+
+    // Vérifier si la session planifiée existe
+    const session = await ScheduledSession.findById(scheduledSessionId).populate("cours");
+    if (!session) {
+      return res.status(404).json({ success: false, message: "Session non trouvée" });
+    }
+
+    // Vérifier si la session est complète
+    if (session.currentCapacity >= session.maxCapacity) {
+      return res.status(400).json({ success: false, message: "Session complète" });
+    }
+
+    // Vérifiez si l'utilisateur a des sessions disponibles
+    if (user.sessionCount > 0) {
+      // Utiliser une session disponible
+      user.sessionCount -= 1;
+      await user.save();
+
+      // Créer une réservation
+      const booking = new Booking({
+        scheduledSession: scheduledSessionId,
+        user: userId,
+        status: "confirmé",
+      });
+
+      // Sauvegarder la réservation
+      const savedBooking = await booking.save();
+
+      // Mettre à jour la capacité actuelle de la session
+      session.currentCapacity += 1;
+      await session.save();
+
+      return res.status(201).json({
+        success: true,
+        message: "Réservation confirmée en utilisant une session existante.",
+        data: savedBooking,
+      });
+    }
+
+    // Si pas de sessions disponibles, effectuer un paiement
+    const prixSession = session.cours.price; // Récupérer le prix du cours associé
+
+    // Simuler le paiement (à intégrer avec une API de paiement)
+    // Pour cet exemple, on suppose que le paiement est réussi.
+
+    // Créer une réservation
+    const booking = new Booking({
+      scheduledSession: scheduledSessionId,
+      user: userId,
+      status: "confirmé",
+    });
+
+    // Sauvegarder la réservation
+    const savedBooking = await booking.save();
+
+    // Mettre à jour la capacité actuelle de la session
+    session.currentCapacity += 1;
+    await session.save();
+    res.status(201).json({
+      success: true,
+      message: "Réservation confirmée après paiement.",
+      data: { booking: savedBooking, prix: prixSession },
+    });
+  } catch (error) {
+    console.error("Erreur lors de la réservation :", error);
+    res.status(500).json({ success: false, message: "Erreur interne du serveur" });
   }
 });
 
