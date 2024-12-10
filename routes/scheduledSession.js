@@ -264,7 +264,30 @@ router.get("/week", async (req, res) => {
     }
   });
 
-  
+  // GET /api/scheduledSessions/next-week - Get scheduled sessions for the next week
+router.get("/next-week", async (req, res) => {
+  try {
+    // Calculate the start and end of the next week
+    const startOfNextWeek = moment().add(1, 'weeks').startOf('isoWeek'); // Next Monday
+    const endOfNextWeek = moment().add(1, 'weeks').endOf('isoWeek');    // Next Sunday 23:59:59
+
+    // Query the database for sessions within the next week range
+    const sessions = await ScheduledSession.find({
+      date: {
+        $gte: startOfNextWeek.toDate(),
+        $lte: endOfNextWeek.toDate(),
+      }
+    })
+    .populate("cours", "name description duration intensityLevel")
+    .populate("coach", "name bio expertise");
+
+    res.status(200).json(sessions);
+  } catch (error) {
+    console.error("Error fetching next week's sessions:", error);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
   function getCurrentWeekRange() {
     const now = new Date();
     const dayOfWeek = now.getDay(); // 0 (Sunday) to 6 (Saturday)

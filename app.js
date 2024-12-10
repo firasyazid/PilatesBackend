@@ -7,7 +7,7 @@ require("dotenv/config");
 const errorHandler = require("./middleware/error");
 const api = process.env.API_URL;
 app.use("/public/uploads", express.static(__dirname + "/public/uploads"));
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 8080;
 
 //Middleware
 app.use(morgan("tiny"));
