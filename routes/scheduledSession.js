@@ -5,6 +5,19 @@ const { Cours } = require("../models/cours");
 const { Coach } = require("../models/coach");
 const moment = require("moment");
 
+
+// Get ScheduledSession by ID
+router.get("/:id", async (req, res) => {
+  const user = await ScheduledSession.findById(req.params.id);
+
+  if (!user) {
+    res
+      .status(500)
+      .json({ message: "The user with the given ID was not found." });
+  }
+  res.status(200).send(user);
+});
+
 router.get("/:coursId", async (req, res) => {
   try {
     const { coursId } = req.params;
@@ -52,6 +65,7 @@ router.get("/:coursId", async (req, res) => {
     });
   }
 });
+
 router.get("/week/:coursId", async (req, res) => {
   try {
     const { coursId } = req.params;
@@ -170,7 +184,6 @@ router.get("/next-week/:coursId", async (req, res) => {
     });
   }
 });
-
 
 // POST /api/scheduledSessions - Create a new scheduled session
 router.post("/", async (req, res) => {
