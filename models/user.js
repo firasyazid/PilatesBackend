@@ -22,9 +22,28 @@ const userSchema = new mongoose.Schema({
     default: false,
   },
   abonnement: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Abonnement",  
-    default: null,
+    type: [
+      {
+        abonnement: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Abonnement",  
+          required: true,
+        },
+        sessionCount: {
+          type: Number,
+          required: true, 
+        },
+        expirationDate: {
+          type: Date,
+          required: true,  
+        },
+        purchasedAt: {
+          type: Date,
+          default: Date.now,  
+        },
+      },
+    ],
+    default: [],  
   },
   sessionCount: {
     type: Number,
@@ -41,6 +60,10 @@ const userSchema = new mongoose.Schema({
   },
   tokenPasswordExpiration: {
     type: Date,
+    default: null,
+  },
+  image: {
+    type: String,
     default: null,
   },
 });

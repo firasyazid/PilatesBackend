@@ -4,11 +4,32 @@ const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const multer = require("multer");
-const nodemailer = require("nodemailer");
+ const nodemailer = require("nodemailer");
 const mongoose = require("mongoose");
 const crypto = require("crypto");
 const { Booking } = require("../models/booking");  
+const multer = require("multer");
+
+
+const FILE_TYPE_MAP = {
+  "image/png": "png",
+  "image/jpeg": "jpeg",
+  "image/jpg": "jpg",
+};
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "public/uploads");
+  },
+  filename: function (req, file, cb) {
+    const fileName = file.originalname.split(" ").join("-");
+    const extension = FILE_TYPE_MAP[file.mimetype] || "file";
+    cb(null, `${fileName}-${Date.now()}.${extension}`);
+  },
+});
+
+const uploadOptions = multer({ storage: storage });
+
 
 router.get('/last-user', async (req, res) => {
   try {
@@ -236,56 +257,74 @@ router.put("/update/:userId", async (req, res) => {
 });
 
 router.post("/acheter-abonnement/:userId", async (req, res) => {
+  const session = await mongoose.startSession();  
+  session.startTransaction();
+
   try {
     const userId = req.params.userId;
     const abonnementId = req.body.abonnementId;
+
     // Vérifier les IDs
     if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(abonnementId)) {
+      await session.abortTransaction();
       return res.status(400).send("ID utilisateur ou abonnement invalide");
     }
 
     // Vérifier si l'utilisateur existe
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).send("Utilisateur non trouvé");
-
-    // Vérifier si l'abonnement existe
-    const abonnement = await Abonnement.findById(abonnementId);
-    if (!abonnement) return res.status(404).send("Abonnement non trouvé");
-
-    // Vérifier si l'utilisateur a un abonnement actif ou s'il s'agit de son premier abonnement
-    const currentDate = new Date();
-    if (user.expirationDate && user.expirationDate > currentDate) {
-      // L'utilisateur a un abonnement actif, cumule les sessions
-      user.sessionCount += abonnement.sessionCount;
-
-      // Prolonger la date d'expiration (en jours)
-      user.expirationDate = new Date(
-        user.expirationDate.setDate(user.expirationDate.getDate() + abonnement.duration)
-      );
-    } else {
-      // Premier abonnement ou abonnement expiré
-      user.sessionCount = abonnement.sessionCount; // Réinitialiser les sessions
-      user.expirationDate = new Date(
-        currentDate.setDate(currentDate.getDate() + abonnement.duration)
-      ); // Définir une nouvelle date d'expiration
+    const user = await User.findById(userId).session(session);
+    if (!user) {
+      await session.abortTransaction();
+      return res.status(404).send("Utilisateur non trouvé");
     }
 
-    // Associer l'abonnement actuel
-    user.abonnement = abonnement._id;
+    // Vérifier si l'abonnement existe
+    const abonnement = await Abonnement.findById(abonnementId).session(session);
+    if (!abonnement) {
+      await session.abortTransaction();
+      return res.status(404).send("Abonnement non trouvé");
+    }
+
+    const currentDate = new Date();
+    const expirationDate = user.expirationDate && user.expirationDate > currentDate
+      ? new Date(user.expirationDate.setDate(user.expirationDate.getDate() + abonnement.duration))
+      : new Date(currentDate.setDate(currentDate.getDate() + abonnement.duration));
+
+    const sessionCount = user.expirationDate && user.expirationDate > currentDate
+      ? user.sessionCount + abonnement.sessionCount
+      : abonnement.sessionCount;
+
+    // Ajouter un nouvel abonnement à la liste des abonnements de l'utilisateur
+    user.abonnement= user.abonnement || []; // Initialize array if not present
+    user.abonnement.push({
+      abonnement: abonnement._id,
+      sessionCount: abonnement.sessionCount,
+      expirationDate: expirationDate,
+      purchasedAt: new Date(),
+    });
+
+    // Mettre à jour les données principales de l'utilisateur
+    user.sessionCount = sessionCount;
+    user.expirationDate = expirationDate;
 
     // Sauvegarder les modifications
-    const updatedUser = await user.save();
+    await user.save({ session });
 
-    // Réponse
+    // Valider la transaction
+    await session.commitTransaction();
+    session.endSession();
+
     res.status(200).send({
       message: "Abonnement acheté avec succès",
-      user: updatedUser,
+      user,
     });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     console.error("Erreur lors de l'achat de l'abonnement :", error);
     res.status(500).send("Erreur interne du serveur");
   }
 });
+
 
 router.get("/users-by-abonnement/:abonnementId", async (req, res) => {
   try {
@@ -573,6 +612,74 @@ router.get("/user-booking/:userId", async (req, res) => {
       success: false,
       message: "An error occurred while fetching bookings.",
     });
+  }
+});
+
+router.put(
+  "/:userId/update-image",
+  uploadOptions.single("image"),
+  async (req, res) => {
+    try {
+      const userId = req.params.userId;
+      const file = req.file;
+      const basePath = `${req.protocol}://${req.get("host")}/public/uploads/`;
+
+      const updatedUser = await User.findByIdAndUpdate(
+        userId,
+        { image: `${basePath}${file.filename}` },
+        { new: true }
+      );
+
+      if (!updatedUser) {
+        return res.status(404).send("User not found");
+      }
+
+      res.send(updatedUser);
+    } catch (error) {
+      console.error(error);
+      res.status(500).send("Error updating user's image");
+    }
+  }
+);
+
+// Route to get all abonnements for a specific user
+router.get("/Allabonnements/:userId", async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    // Validate userId
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ error: "ID utilisateur invalide" });
+    }
+
+    // Fetch user and populate abonnements
+    const user = await User.findById(userId)
+      .populate({
+        path: "abonnement.abonnement", // Populate abonnement details
+        select: "name duration sessionCount price", // Select only necessary fields
+      })
+      .select("fullname email abonnement"); // Select relevant user fields
+
+    if (!user) {
+      return res.status(404).json({ error: "Utilisateur non trouvé" });
+    }
+
+    // Return the user's abonnements with structured data
+    res.status(200).json({
+      userId: user.id,
+      fullname: user.fullname,
+      email: user.email,
+      abonnements: user.abonnement.map((item) => ({
+        _id: item._id,
+        abonnement: item.abonnement,
+        sessionCount: item.sessionCount,
+        expirationDate: item.expirationDate,
+        purchasedAt: item.purchasedAt,
+      })),
+    });
+  } catch (error) {
+    console.error("Erreur lors de la récupération des abonnements :", error);
+    res.status(500).json({ error: "Erreur interne du serveur" });
   }
 });
 
